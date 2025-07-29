@@ -1,11 +1,14 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
+from django.utils.text import slugify
 
+# Custom user model
 class CustomUser(AbstractUser):
     bio = models.TextField(blank=True)
     profile_picture = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
-    
+
+# Categories model
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=100, unique=True)
@@ -17,13 +20,14 @@ class Category(models.Model):
     def __str__(self):
         return self.name
 
+# Articles model (1 category only per article, required)
 class Article(models.Model):
     title = models.CharField(max_length=200)
-    slug = models.SlugField(max_length=200, unique=True)
-    categories = models.ManyToManyField(Category, related_name='articles')
+    slug = models.SlugField(max_length=200, unique=True, blank=True)
+    category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name='articles')
     thumbnail = models.ImageField(upload_to='thumbnails/')
     content = models.TextField()
-    author = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    author = models.ForeignKey(CustomUser, on_delete=models.CASCADE, limit_choices_to={'is_staff': True})  # only admin can post
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
     likes = models.ManyToManyField(CustomUser, related_name='article_likes', blank=True)
@@ -32,10 +36,16 @@ class Article(models.Model):
     def __str__(self):
         return self.title
 
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.title)
+        super().save(*args, **kwargs)
+
     def increment_views(self):
         self.views += 1
         self.save()
 
+# Comments and replies
 class Comment(models.Model):
     article = models.ForeignKey(Article, on_delete=models.CASCADE, related_name='comments')
     author = models.ForeignKey(CustomUser, on_delete=models.CASCADE)

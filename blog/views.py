@@ -4,8 +4,12 @@ from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from .models import Article, Comment, CustomUser, Category
 from .serializers import (
-    ArticleSerializer, ArticleListSerializer, ArticleDetailSerializer,
-    CommentSerializer, UserSerializer, CategorySerializer
+    ArticleListSerializer, 
+    ArticleDetailSerializer,
+    ArticleCreateUpdateSerializer,
+    CommentSerializer, 
+    UserSerializer, 
+    CategorySerializer
 )
 from rest_framework.authtoken.models import Token
 from rest_framework.authentication import TokenAuthentication
@@ -29,9 +33,8 @@ class UserLoginView(APIView):
         user = CustomUser.objects.filter(username=username).first()
         
         if user and user.check_password(password):
-            token, created = Token.objects.get_or_create(user=user)
             return Response({
-                'token': token.key,
+                
                 'user': UserSerializer(user).data
             })
         return Response(
@@ -60,6 +63,16 @@ class ArticleListView(generics.ListAPIView):
             queryset = queryset.filter(categories__slug=category_slug)
         return queryset.order_by('-created_at')
 
+class ArticleByCategoryView(generics.ListAPIView):
+    serializer_class = ArticleListSerializer
+    pagination_class = None
+    
+    def get_queryset(self):
+        slug = self.kwargs['slug']
+        return Article.objects.filter(
+            categories__slug=slug
+        ).select_related('author').prefetch_related('categories').order_by('-created_at')
+
 class ArticleDetailView(generics.RetrieveAPIView):
     queryset = Article.objects.all()
     serializer_class = ArticleDetailSerializer
@@ -73,8 +86,8 @@ class ArticleDetailView(generics.RetrieveAPIView):
 
 class ArticleCreateView(generics.CreateAPIView):
     queryset = Article.objects.all()
-    serializer_class = ArticleSerializer
-    authentication_classes = [TokenAuthentication]
+    serializer_class = ArticleCreateUpdateSerializer
+    
     permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
@@ -82,8 +95,8 @@ class ArticleCreateView(generics.CreateAPIView):
 
 class ArticleUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Article.objects.all()
-    serializer_class = ArticleSerializer
-    authentication_classes = [TokenAuthentication]
+    serializer_class = ArticleCreateUpdateSerializer
+    
     permission_classes = [IsAuthenticated]
     lookup_field = 'slug'
 
@@ -104,7 +117,7 @@ class CommentListView(generics.ListAPIView):
 class CommentCreateView(generics.CreateAPIView):
     queryset = Comment.objects.all()
     serializer_class = CommentSerializer
-    authentication_classes = [TokenAuthentication]
+    
     permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
@@ -140,7 +153,7 @@ class LikeArticleView(APIView):
         })
 
 class LikeCommentView(APIView):
-    authentication_classes = [TokenAuthentication]
+    
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
@@ -162,7 +175,7 @@ class LikeCommentView(APIView):
 class CommentDeleteView(generics.DestroyAPIView):
     queryset = Comment.objects.all()
     serializer_class = CommentSerializer
-    authentication_classes = [TokenAuthentication]
+    
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
